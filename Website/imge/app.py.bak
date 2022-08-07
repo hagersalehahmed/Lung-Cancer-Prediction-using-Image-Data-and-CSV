@@ -1,0 +1,66 @@
+import joblib
+from flask import Flask, render_template, request
+import os
+import numpy as np
+from joblib import load
+import pandas as pd
+import tensorflow as tf
+from keras.preprocessing.image import ImageDataGenerator
+from keras.preprocessing import image
+from tensorflow import keras
+
+app = Flask(__name__)
+
+
+@app.route('/', methods=['GET'])
+def hello_world():
+    return render_template('index.html')
+
+def recall_m(y_true, y_pred):
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+    recall = true_positives / (possible_positives + K.epsilon())
+    return recall
+
+def precision_m(y_true, y_pred):
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+    precision = true_positives / (predicted_positives + K.epsilon())
+    return precision
+
+def f1_m(y_true, y_pred):
+    precision = precision_m(y_true, y_pred)
+    recall = recall_m(y_true, y_pred)
+    return 2*((precision*recall)/(precision+recall+K.epsilon()))
+
+@app.route('/', methods=['POST'])
+def predict():
+    imagefile = request.files['imagefile']
+    image_path = "./images/" + imagefile.filename
+    imagefile.save(image_path)
+
+    cnn = keras.models.load_model("E:\coding\Shaker\Deploymentscript\imge\DeepCNN.h5", custom_objects={'f1_m': f1_m,  'precision_m': precision_m, 'recall_m': recall_m} )
+
+    from keras.preprocessing import image
+    import numpy as np
+    classes_dir = ["Adenocarcinoma", "Large cell carcinoma", "Normal", "Squamous cell carcinoma"]
+    img = tf.keras.utils.load_img(image_path, target_size=(64, 64))
+    norm_img = tf.keras.utils.img_to_array(img) / 255
+    input_arr_img = np.array([norm_img])
+    prediction = np.argmax(cnn.predict(input_arr_img))
+    print(classes_dir[prediction])
+    
+    
+    if(prediction==1 or prediction==2 or prediction==3 ):
+        result="The person has lung cancer disease";
+    elif (prediction==0):
+        result="The person does not has lung cancer disease";
+    else:
+        result="Error";
+    return render_template("index.html", prediction_text = "{}".format(result))
+    
+    #return render_template('ismail.html', prediction=classes_dir[pred])
+
+
+if __name__ == "__main__":
+    app.run(port=3000, debug=True)
